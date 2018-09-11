@@ -1,4 +1,8 @@
 #include "estimator.h"
+#include "fstream"
+#include "string"
+
+using namespace std;
 
 Estimator::Estimator(): f_manager{Rs}
 {
@@ -357,15 +361,17 @@ bool Estimator::initialStructure()
 bool Estimator::visualInitialAlign()
 {
     TicToc t_g;
-    VectorXd x;
+    Vector3d ba;
+    double scale;
     //solve scale
-    bool result = VisualIMUAlignment(all_image_frame, Bgs, g, x);
+    bool result = VisualIMUAlignment(all_image_frame, Bgs, g, scale, ba);
     if(!result)
     {
         ROS_DEBUG("solve g failed!");
         return false;
     }
-
+    
+    tic[0] = TIC[0];
     // change state
     for (int i = 0; i <= frame_count; i++)
     {
@@ -389,7 +395,7 @@ bool Estimator::visualInitialAlign()
     f_manager.setRic(ric);
     f_manager.triangulate(Ps, &(TIC_TMP[0]), &(RIC[0]));
 
-    double s = (x.tail<1>())(0);
+    double s = scale;
     for (int i = 0; i <= WINDOW_SIZE; i++)
     {
         pre_integrations[i]->repropagate(Vector3d::Zero(), Bgs[i]);
@@ -472,7 +478,28 @@ void Estimator::solveOdometry()
         TicToc t_tri;
         f_manager.triangulate(Ps, tic, ric);
         ROS_DEBUG("triangulation costs %f", t_tri.toc());
+	ROS_INFO("before optimization tic = ( %f , %f , %f )", tic[0](0),tic[0](1),tic[0](2));
         optimization();
+        
+        //ros调试输出
+        ROS_INFO("ric = ( %f, %f, %f, %f, %f, %f, %f, %f, %f )", ric[0](0,0),ric[0](0,1),ric[0](0,2),ric[0](1,0),ric[0](1,1),ric[0](1,2),ric[0](2,0),ric[0](2,1),ric[0](2,2));
+        ROS_INFO_STREAM("RIC = "<<ric[0]);
+        ROS_INFO("tic = ( %f , %f , %f )", tic[0](0),tic[0](1),tic[0](2));
+
+        //将相机imu外参输出到文件
+        ofstream out_translation_file("/home/likaiyue/dataset/out_translation.txt", ios_base::app);
+        ofstream out_orientation_file("/home/likaiyue/dataset/out_orientation.txt", ios_base::app);
+        
+        out_translation_file << setprecision(19) << Headers[frame_count].stamp.toSec();
+        out_translation_file << setprecision(7) << "," << tic[0](0) << "," << tic[0](1) << "," << tic[0](2) << endl;
+
+        Quaterniond q_temp{ric[0]};
+        out_orientation_file << setprecision(19) << Headers[frame_count].stamp.toSec();
+        out_orientation_file << setprecision(7) << "," << q_temp.w() << "," << q_temp.x() << "," << q_temp.y() << "," << q_temp.z() << endl;
+        
+        out_translation_file.close();
+        out_orientation_file.close();
+        
     }
 }
 

@@ -26,4 +26,4 @@ class ImageFrame
         bool is_key_frame;
 };
 
-bool VisualIMUAlignment(map<double, ImageFrame> &all_image_frame, Vector3d* Bgs, Vector3d &g, VectorXd &x);
+bool VisualIMUAlignment(map<double, ImageFrame> &all_image_frame, Vector3d* Bgs, Vector3d &g, double &s, Vector3d &ba);

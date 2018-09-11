@@ -1,0 +1,11 @@
+{
+    "files.associations": {
+        "string": "cpp",
+        "tuple": "cpp",
+        "array": "cpp",
+        "slist": "cpp",
+        "initializer_list": "cpp",
+        "dense": "cpp",
+        "core": "cpp"
+    }
+}
