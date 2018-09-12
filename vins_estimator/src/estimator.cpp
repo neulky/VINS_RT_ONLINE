@@ -363,8 +363,11 @@ bool Estimator::visualInitialAlign()
     TicToc t_g;
     Vector3d ba;
     double scale;
+    int image_frame_count = all_image_frame.size();
+    VectorXd Vs{image_frame_count};
+    
     //solve scale
-    bool result = VisualIMUAlignment(all_image_frame, Bgs, g, scale, ba);
+    bool result = VisualIMUAlignment(all_image_frame, Bgs, g, scale, ba, Vs);
     if(!result)
     {
         ROS_DEBUG("solve g failed!");
@@ -409,7 +412,7 @@ bool Estimator::visualInitialAlign()
         if(frame_i->second.is_key_frame)
         {
             kv++;
-            Vs[kv] = frame_i->second.R * x.segment<3>(kv * 3);
+            Vs[kv] = Vs.segment<3>(kv * 3);
         }
     }
     for (auto &it_per_id : f_manager.feature)

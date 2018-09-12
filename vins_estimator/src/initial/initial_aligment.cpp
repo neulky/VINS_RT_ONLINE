@@ -196,7 +196,7 @@ void RefineGravity(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vector
         return true;
 } */
 
-bool LinearAlignment(map<double, ImageFrame> &all_image_frame, Vector3d &g, double &s, Vector3d &ba)
+bool LinearAlignment(map<double, ImageFrame> &all_image_frame, Vector3d &g, double &s, Vector3d &ba, VectorXd &Vs_all)
 {
     cv::Mat Rbc = Converter::toCvMat(TIC[0]);
     cv::Mat Rcb = Rbc.t();
@@ -371,13 +371,53 @@ bool LinearAlignment(map<double, ImageFrame> &all_image_frame, Vector3d &g, doub
     cv::Mat Pcb_ = y.rowRange(6, 9);                                    //Pbc
     cv::Mat Pbc_ = -Rbc * Pcb_;  
     TIC[0] = Converter::toVector3d(Pbc_);
+        
+    //Step 3.
+    //compute velocity
+    i = 0;
+    for(frame_i = all_image_frame.begin();next(frame_i) != all_image_frame.end();frame_i++,i++)
+    {
+        frame_j = next(frame_i);
+        double dt = frame_j->second.pre_integration->sum_dt;
+        cv::Mat dp = Converter::toCvMat(frame_j->second.pre_integration->delta_p);
+        Matrix3d dp_dba = frame_j->second.pre_integration->jacobian.block<3, 3>(O_P, O_BA);
+        cv::Mat Jpda = Converter::toCvMat(dp_dba);
+        cv::Mat Pwc = Converter::toCvMat(frame_i->second.T);
+        cv::Mat Rwc = Converter::toCvMat(frame_i->second.R * RIC[0]);
+        cv::Mat Pwcnext = Converter::toCvMat(frame_j->second.T);
+        cv::Mat Rwcnext = Converter::toCvMat(frame_j->second.R * RIC[0]);
+
+        cv::Mat velocity_ = -1./dt * (s * (Pwc - Pwcnext)) + (Rwc - Rwcnext) * Pcb_ + Rwc * Rcb * (dp + Jpda * dbiasa_) + 0.5 * gw_cv * dt * dt)
+        Vector3d velocity = Converter::toVector3d(velocity_);
+        Vs_all.segment<3>(i * 3) = velocity;
+
+        if(next(frame_j) == all_image_frame.end())
+        {
+            //frame_j is the last KeyFrame
+            double dt = frame_j->second.pre_integration->sum_dt;
+            Matrix3d Jvba = frame_j->second.pre_integration->jacobian.block<3, 3>(O_V, O_BA);
+            Vector3d dv = frame_j->second.pre_integration->delat_v;
+
+            Vector3d V_frame_i = Vs_all[i];
+            Vector3d R_frame_i = frame_i->second.R;
+
+            Vector3d V_frame_j = V_frame_i + g * dt + R_frame_i * (dv + Jvba * dba);
+            i++;
+            Vs_all.segment<3>(i * 3) = V_frame_j;
+        }
+    }
+
+    if(s < 0.0 )
+        return false;   
+    else
+        return true;
 
 }
-bool VisualIMUAlignment(map<double, ImageFrame> &all_image_frame, Vector3d* Bgs, Vector3d &g, double &s, Vector3d &ba)
+bool VisualIMUAlignment(map<double, ImageFrame> &all_image_frame, Vector3d* Bgs, Vector3d &g, double &s, Vector3d &ba, VectorXd &Vs_all)
 {
     solveGyroscopeBias(all_image_frame, Bgs);
 
-    if(LinearAlignment(all_image_frame, g, s, ba))
+    if(LinearAlignment(all_image_frame, g, s, ba, Vs_all))
         return true;
     else 
         return false;
